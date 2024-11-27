@@ -1,0 +1,255 @@
+---
+title: "homework11"
+output: html_document
+date: "2024-11-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Homework 11
+
+Rose Wilfong
+
+# Part 1
+
+## Data Used
+
+The data was collected by the Honolulu Heart Study and is a prospective examination of coronary heart disease and stroke among men of Japanese ancestry born between 1900 and 1919 and residing on the island of Oahu in 1965.
+
+| Column Name | Description                         |
+|-------------|-------------------------------------|
+| Age         | Age at Exam 1                       |
+| agegrp      | Age in groups                       |
+| bmi         | Body Mass Index                     |
+| sbp         | Systolic Blood Pressure             |
+| currsmok    | Current Smoker (0=No, 1=Yes)        |
+| chd10       | 10-year CHD incidence (0=No, 1=Yes) |
+
+: Description of Dataset Variables
+
+```{r}
+# read in the data 
+data_1 <- read.csv("/Users/rwilfong/Downloads/BME501/data/BME 501 Homework 11-1 dataset.csv")
+data_1
+```
+
+Now, convert the CHD10 and currsmok entries numerical entries
+
+```{r}
+data_1$chd10 <- factor(data_1$chd10, levels = c("NO", "YES"))
+data_1$chd10 <- as.numeric(data_1$chd10) - 1 
+data_1$currsmok <- factor(data_1$currsmok, levels = c("NO", "YES"))
+data_1$currsmok <- as.numeric(data_1$currsmok) - 1
+data_1
+```
+
+### Question 1 
+
+Estimate the odds ratio, adjusted for age, BMI, and systolic blood pressure, for developing CHD within 10 years for a smoker compared to a non-smoker
+
+```{r}
+# fit logistic regression model 
+logit_model <- glm(chd10 ~ age + bmi + sbp + currsmok, data = data_1, family = binomial)
+summary(logit_model)
+```
+
+```{r}
+# calculate the odds ratio and the 95% confidence interval
+exp(cbind(OR = coef(logit_model), confint(logit_model)))
+```
+
+The estimated odds ratio adjusted for age, BMI, and systolic blood pressure is 1.482620.
+
+### Question 2
+
+Determine a 95% confidence interval for the adjusted odds ratio, accounting for all risk factors (age, systolic blood pressure, and BMI).
+
+```{r}
+exp(cbind(OR = coef(logit_model), confint(logit_model)))
+```
+
+The 95% confidence interval for the adjusted odds ratio accounting for all risk factors is (0.9028657, 2.440632280). \
+
+### Question 3
+
+Estimate the probability of developing CHD within 10 years for an "average" smoker man (age = 54.6, BMI=23.2, systolic blood pressure = 134.4), along with a 95% confidence interval for this probability
+
+```{r}
+# construct a new dataset of the "average" smoker man 
+average_smoker <- data.frame(
+  age = 54.6,
+  bmi = 23.2,
+  sbp = 134.4,
+  currsmok = 1
+)
+average_smoker
+```
+
+```{r}
+# predict from the previous model on the new data 
+predicted_prob <- predict(logit_model, newdata = average_smoker, type = "response", se.fit = TRUE)
+
+```
+
+```{r}
+# calculate the 95% confidence interval
+prob <- predicted_prob$fit
+se <- predicted_prob$se.fit
+
+z_value <- qnorm(0.975)  # 95% confidence level
+logit_ci <- c(prob - z_value * se, prob + z_value * se)
+
+# transform to a CI
+ci <- exp(logit_ci) / (1 + exp(logit_ci))
+
+# print the results
+cat("Predicted probability of developing CHD for an average smoker:", prob, "\n")
+cat("95% CI for the probability:", ci[1], ",", ci[2], "\n")
+```
+
+# Part 2 
+
+You are interested in developing a simple diagnostic method to reliably predict multiple sclerosis using
+MRI data. In this study, white matter areas were measured from 150 patients as a predictor, and the
+presence of multiple sclerosis was confirmed by lumbar puncture results (considered the gold
+standard).
+
+```{r}
+library(pROC)
+data_2 <- read.csv("/Users/rwilfong/Downloads/BME501/data/BME 501 Homework 11-2 dataset.csv")
+data_2
+```
+
+### Question 1 
+
+Write your own code (using Python, Matlab, R, or any preferred language) to plot the ROC
+curve and calculate the AUC
+
+```{r}
+roc_curve <- roc(data_2$Multiple.sclerosis, data_2$Area)
+plot(roc_curve, main="ROC Curve for Multiple Sclerosis Prediction", col="blue", lwd=2)
+```
+
+```{r}
+auc_value <- auc(roc_curve)
+auc_value
+```
+
+### Question 2 
+
+Using logistic regression, plot an ROC curve and calculate the AUC
+
+```{r}
+# fit logistic regression model
+logit_model <- glm(Multiple.sclerosis ~ Area, data = data_2, family = binomial)
+
+# get predicted probabilities
+pred_probs <- predict(logit_model, type = "response")
+
+# plot the ROC curve
+roc_curve <- roc(data_2$Multiple.sclerosis, pred_probs)
+plot(roc_curve, main="ROC Curve for Logistic Regression Model", col="purple", lwd=2)
+```
+
+```{r}
+# calculate the AUC (Area Under the Curve)
+auc_value <- auc(roc_curve)
+auc_value
+```
+
+# Part 3 
+
+The textbook introduces the Ille-et-Vilaine study on esophageal cancer and alcohol (Breslow and Day,
+1980). In this study, data are stratified by ten-year age groups, clearly showing that esophageal cancer
+incidence increases significantly with age. The Ille-et-Vilaine dataset categorizes daily alcohol
+consumption into four levels: 0–39 g, 40–79 g, 80–119 g, and ≥120 g. Similarly, daily tobacco
+consumption is divided into four levels: 0–9 g, 10–19 g, 20–29 g, and ≥30 g.
+
+```{r}
+# read in the data 
+data_3 <- read.csv("/Users/rwilfong/Downloads/BME501/data/5.5.EsophagealCa.csv")
+data_3
+```
+
+### Question 1 
+
+Using multiple logistic regression, build a model to predict the risk of esophageal cancer,
+including all risk factors in the dataset. Define dummy variables for categorical variables as
+needed.
+
+```{r}
+# fit a multiple logistic model 
+model <- glm(cancer ~ factor(alcohol) + factor(age), 
+                        data = data_3, family = binomial, weight = patients)
+summary(model)
+```
+
+### Question 2 
+
+Perform a goodness-of-fit test (e.g., Pearson chi-squared test) to assess the model's fit.
+
+```{r}
+pearson_residuals <- residuals(model, type = "pearson")
+
+# sum of squared Pearson residuals
+pearson_chi_sq <- sum(pearson_residuals^2)
+
+# degrees of freedom = total number of patterns - the number of independent variables - 1
+dof <- dim(data_3)[1] - length(coef(model))
+
+# calculate p-value from chi-squared distribution
+p_value <- pchisq(pearson_chi_sq, dof, lower.tail = FALSE)
+
+# print results
+cat("Pearson Chi-squared:", pearson_chi_sq, "\n")
+cat("Degrees of Freedom:", dof, "\n")
+cat("P-value:", p_value, "\n")
+```
+
+### Question 3 
+
+Evaluate the model's performance by plotting a receiver operating characteristic (ROC) curve
+and calculating the area under the curve (AUC).
+
+```{r}
+# expand the data
+df_expand <- data_3[rep(1:nrow(data_3), data_3$patients), ]
+df_expand
+
+# predict probabilities
+predicted_probabilities <- predict(model, newdata = df_expand, type = "response")
+
+# convert probabilities to binary predictions with threshold 0.5
+predicted_classes <- ifelse(predicted_probabilities > 0.5, 1, 0)
+
+```
+
+```{r}
+# generate ROC curve
+roc_curve <- roc(df_expand$cancer, predicted_probabilities)
+auc_value <- auc(roc_curve)
+print(paste("AUC:", auc_value))
+
+# plot the ROC curve
+plot(roc_curve, main = "ROC Curve", col = "blue")
+text(0.5, 0.5, paste("AUC =", round(auc_value, 4)), col = "red")
+
+```
+
+### Question 4 
+
+Calculate the accuracy (%) of your logistic regression model in correctly classifying esophageal
+cancer when the predicted probability is ≥ 0.5
+
+```{r}
+# calculate number of correct predictions using the predicted classes
+correct_predictions <- sum(predicted_classes == df_expand$cancer)
+
+# calculate accuracy
+accuracy <- correct_predictions / nrow(df_expand)
+
+# print the accuracy as a percentage
+print(paste("Accuracy:", round(accuracy * 100, 2), "%"))
+```
